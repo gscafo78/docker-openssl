@@ -23,10 +23,14 @@ COPY ./src/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Define an environment variable to trigger script execution
+ENV GENERATE_CA_CERT=false
 ENV GENERATE_CLIENT_CERT=false
 ENV GENERATE_SERVER_CERT=false
 ENV GENERATE_DH_CERT=false
 ENV DH_KEY_SIZE=2048
+ENV CA-NAME=""
+ENV SERVER-NAME=""
+ENV CLIENT-NAME=""
 
 # Set the entry point
 ENTRYPOINT ["/entrypoint.sh"]

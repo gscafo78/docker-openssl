@@ -18,7 +18,6 @@ is_valid_dh_key_size() {
     fi
 }
 
-
 # Function to generate a random Common Name (CN) by combining three random words
 generate_composed_cn() {
     local random_word1=$(shuf -n 1 /usr/share/dict/words)
@@ -28,91 +27,122 @@ generate_composed_cn() {
     echo "$composed_cn"
 }
 
+# Function to check if a given name is empty and generate a composed CN if it is
+is_empty_name() {
+    local checkempty="$1"
+    local prefix="$2"
+    if [ -z "$checkempty" ]; then
+        checkempty="${prefix}$(generate_composed_cn)"
+    fi
+    echo "$checkempty"
+}
+
 # Function to generate a certificate
 generate_certificate() {
-    local cert_folder=$1
-    local cert_type=$2
+    local cert_type=$1 # ca/server/client/dh
+    local cert_folder=$2
+    local cert_config=$3
+    local certname=$4
+    local RANDOM_CN
 
     # Create the certificate folder if it does not exist
     mkdir -p "${cert_folder}"
-    if [ "${cert_type}" == "server" ]; then
-        # Generate Diffie-Hellman parameters if required
-        if [ "${GENERATE_DH_CERT}" = "true" ]; then
+
+    case $cert_type in
+        ca)
+            # Setup the CA folder if it does not already exist
+            if [ -z "$(ls -A "${cert_folder}")" ]; then
+                echo "Setting up CA folder..."
+                mkdir -p "${cert_folder}/private" "${cert_folder}/newcerts"
+                touch "${cert_folder}/index.txt"
+                echo 1000 > "${cert_folder}/serial"
+                dd if=/dev/urandom of="${cert_folder}/private/.rand" bs=256 count=1
+            fi
+
+            export RANDOM_CN=$(is_empty_name "${certname}" "CA_")
+            openssl genrsa -out "${cert_folder}/private/CA.key" 4096
+            openssl req -x509 -new -nodes -key "${cert_folder}/private/CA.key" -sha256 -days 3650 -out "${cert_folder}/CA.pem" -subj "/CN=${RANDOM_CN}" -config "${cert_config}/openssl.cfg"
+            chmod 600 "${cert_folder}/private/CA.key"
+            return 0
+        ;;
+        server)
+            if [ -f /opt/certs/ca/private/CA.key ]; then
+                export RANDOM_CN=$(is_empty_name "${certname}" "Server_")
+                echo "Generated Server CN: ${RANDOM_CN}"
+            else
+                echo "No Certification Authority found, please generate it first"
+                return 1
+            fi
+        ;;
+        client)
+            if [ -f /opt/certs/ca/private/CA.key ]; then
+                export RANDOM_CN=$(is_empty_name "${certname}" "")
+                echo "Generated Client CN: ${RANDOM_CN}"
+            else
+                echo "No Certification Authority found, please generate it first"
+                return 1
+            fi
+        ;;
+        dh)
             echo "Generating DH parameters..."
             openssl dhparam -out "${cert_folder}/dh.pem" "${DH_KEY_SIZE}"
-        fi
-        # Generate a random CN for the server certificate
-        export RANDOM_CN="Server_$(generate_composed_cn)"
-        echo "Generated Server CN: ${RANDOM_CN}"
-    else
-        # Generate a random CN for the client certificate
-        export RANDOM_CN=$(generate_composed_cn)
-        echo "Generated Client CN: ${RANDOM_CN}"
-    fi
+            return 0
+        ;;
+        *)
+            echo "Invalid certificate type specified"
+            return 1
+        ;;
+    esac
 
     # Generate the certificate signing request (CSR) and key
     echo "Generating certificate for ${cert_type} with CN=${RANDOM_CN}..."
-    openssl req -new -newkey rsa:4096 -nodes -out "${cert_folder}/${cert_type}.csr" -keyout "${cert_folder}/${cert_type}.key" -subj "/CN=${RANDOM_CN}" -config "${cafolder}/openssl.cfg"
+    openssl req -new -newkey rsa:4096 -nodes -out "${cert_folder}/${cert_type}.csr" -keyout "${cert_folder}/${cert_type}.key" -subj "/CN=${RANDOM_CN}" -config "${cert_config}/openssl.cfg"
     # Sign the CSR with the CA to produce the certificate
-    openssl ca -batch -config "${cafolder}/ca.cfg" -in "${cert_folder}/${cert_type}.csr" -out "${cert_folder}/${cert_type}.crt"
+    openssl ca -batch -config "${cert_config}/ca.cfg" -in "${cert_folder}/${cert_type}.csr" -out "${cert_folder}/${cert_type}.crt"
     # Remove the CSR file and set appropriate permissions on the key
     rm -f "${cert_folder}/${cert_type}.csr"
     chmod 600 "${cert_folder}/${cert_type}.key"
 }
 
+# ========= Main ===========
+
 # Define directories for CA and certificates
 cafolder=/opt/certs/ca
-certsfolder=/opt/certs/client
+certsclient=/opt/certs/client
 certsserver=/opt/certs/server
+certconfig=/opt/certs/config
 
-if is_valid_dh_key_size "$DH_KEY_SIZE" && [ "${GENERATE_DH_CERT}" = "true" ]; then
-    echo "Valid DH key size!"
-elif [ "${GENERATE_DH_CERT}" = "true" ]; then
-    echo "Invalid DH key size. Please enter a power of 2 between 256 and 4096."
-    exit 0
+# Move configuration files if they exist in /tmp
+mkdir -p ${certconfig}
+if [ -f "/tmp/openssl.cfg" ] && [ -f "/tmp/ca.cfg" ]; then
+    mv /tmp/*.cfg "${certconfig}"
+else
+    echo "Missing configuration files in /tmp"
+    exit 1
 fi
 
-# Setup the CA folder if it does not already exist
-if [ ! -d "${cafolder}" ]; then
-    echo "Setting up CA folder..."
-    mkdir -p "${cafolder}/private" "${cafolder}/newcerts"
-    touch "${cafolder}/index.txt"
-    echo 1000 > "${cafolder}/serial"
-    dd if=/dev/urandom of="${cafolder}/private/.rand" bs=256 count=1
+# Generate CA certificate if requested
+if [ "${GENERATE_CA_CERT}" = "true" ]; then
+    generate_certificate "ca" "${cafolder}" "${certconfig}" "${CA_NAME}"
+fi
 
-    # Move configuration files if they exist in /opt
-    if [ -f "/tmp/openssl.cfg" ] && [ -f "/tmp/ca.cfg" ]; then
-        mv /tmp/*.cfg "${cafolder}"
-    else
-        echo "Missing configuration files in /opt"
-        exit 1
-    fi
-
-    # Generate the CA key and self-signed certificate
-    echo "Generating CA key and certificate..."
-    export RANDOM_CN="ATSC_CA"
-    openssl genrsa -out "${cafolder}/private/CA.key" 4096
-    openssl req -x509 -new -nodes -key "${cafolder}/private/CA.key" -sha256 -days 3650 -out "${cafolder}/CA.pem" -config "${cafolder}/openssl.cfg"
-    chmod 600 "${cafolder}/private/CA.key"
-else
-    # Cleanup configuration files from /opt if the CA already exists
-    for file in /opt/*.cfg; do
-        if [ -f "$file" ]; then
-            rm "$file"
-            echo "Deleted $file"
-        fi
-    done
-    echo "CA already exists"
+# Generate DH parameters if requested and valid
+if is_valid_dh_key_size "$DH_KEY_SIZE" && [ "${GENERATE_DH_CERT}" = "true" ]; then
+    echo "Valid DH key size!"
+    generate_certificate "dh" "${certsserver}" "${certconfig}"
+elif [ "${GENERATE_DH_CERT}" = "true" ]; then
+    echo "Invalid DH key size. Please enter a power of 2 between 256 and 4096."
+    exit 1
 fi
 
 # Generate server certificate if requested
 if [ "${GENERATE_SERVER_CERT}" = "true" ]; then
-    generate_certificate "${certsserver}" "server"
+    generate_certificate "server" "${certsserver}" "${certconfig}" "${SERVER_NAME}"
 fi
 
 # Generate client certificate if requested
 if [ "${GENERATE_CLIENT_CERT}" = "true" ]; then
-    generate_certificate "${certsfolder}" "client"
+    generate_certificate "client" "${certsclient}" "${certconfig}" "${CLIENT_NAME}"
 fi
 
 # Start the application passed as arguments to the script
