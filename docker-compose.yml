@@ -1,0 +1,14 @@
+version: '3'
+services:
+  ssh-server:
+    build: .
+    image: test/ssh-server
+    container_name: ssh-server
+    ports:
+      - "2222:22"
+    networks:
+      - my-network
+
+networks:
+  my-network:
+    driver: bridge
