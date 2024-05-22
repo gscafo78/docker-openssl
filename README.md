@@ -6,7 +6,7 @@ OpenSSL 1.1.1w  11 Sep 2023, container to generate Certification Authority, cert
 
 # Requirement
 
-Docker must be configured to run Linux Docker containers. If it's not the case already, right click on the Docker icon and then click on "Switch to Linux containers...".
+Docker must be configured to run Linux Docker containers.
 
 # Create Docker Container
 
