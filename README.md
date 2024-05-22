@@ -34,8 +34,6 @@ For generating the configuration file, you can use the environmerts:
 * CLIENT_NAME (if omitted will be automatically generated)
 * GENERATE_DH_CERT 
 * DH_KEY_SIZE (128-4096 1194 default)
-  
-
 
 # Generate Keys
 
