@@ -1,14 +1,21 @@
-version: '3'
 services:
-  ssh-server:
-    build: .
-    image: test/ssh-server
-    container_name: ssh-server
-    ports:
-      - "2222:22"
-    networks:
-      - my-network
+  openssl:
+    build: ./build
+    image: 4ss078/docker-openssl
+    environment:
+      - GENERATE_CA_CERT=true
+      - GENERATE_SERVER_CERT=true
+      - GENERATE_CLIENT_CERT=true
+      - GENERATE_DH_CERT=true
+      - DH_KEY_SIZE=2048
+      - CA_NAME=Your_CN_Name
+      - SERVER_NAME=Your_Server_Name
+      - CLIENT_NAME=Your_Client_Name
+    volumes:
+      - openssl_data:/opt
+    stdin_open: true
+    tty: true
+    restart: "no"
 
-networks:
-  my-network:
-    driver: bridge
+volumes:
+  openssl_data:

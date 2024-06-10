@@ -26,7 +26,7 @@ docker run -it --rm -v your_path:/opt 4ss078/docker-openssl
 
 # Generate OpenSSL certificates
 For generating the configuration file, you can use the environmerts:
-* GENERATE_CA
+* GENERATE_CA_CERT
 * CA_NAME (if omitted will be automatically generated)
 * GENERATE_SERVER_CERT
 * SERVER_NAME (if omitted will be automatically generated)
@@ -42,12 +42,12 @@ Once connected to the container, execute the following commands depending on you
 ```shell
 # Create cert.key and cert.csr files for SSL encryption
 docker run -it --rm -v your_path:/opt -e GENERATE_CA_CERT=true \
-                                      -e CA_NAME=pippo \
                                       -e GENERATE_SERVER_CERT=true \
-                                      -e SERVER_NAME=pluto \
                                       -e GENERATE_CLIENT_CERT=true \
-                                      -e CLIENT_NAME=topolino \
                                       -e GENERATE_DH_CERT=true \
                                       -e DH_KEY_SIZE=2048 \
+                                      -e CA_NAME=Your_CN_Name \
+                                      -e SERVER_NAME=Your_Server_Name \
+                                      -e CLIENT_NAME=Your_Client_Name \
                                       4ss078/docker-openssl
 ```
