@@ -33,7 +33,7 @@ For generating the configuration file, you can use the environmerts:
 * GENERATE_CLIENT_CERT
 * CLIENT_NAME (if omitted will be automatically generated)
 * GENERATE_DH_CERT 
-* DH_KEY_SIZE (128-4096 1194 default)
+* DH_KEY_SIZE (128-4096 2048 default)
 
 # Generate Keys
 
@@ -41,12 +41,12 @@ Once connected to the container, execute the following commands depending on you
 
 ```shell
 # Create cert.key and cert.csr files for SSL encryption
-docker run -it --rm -v your_path:/opt -e GENERATE_CA=true \
-                                      -e CA_NAME=pippo
+docker run -it --rm -v your_path:/opt -e GENERATE_CA_CERT=true \
+                                      -e CA_NAME=pippo \
                                       -e GENERATE_SERVER_CERT=true \
-                                      -e SERVER_NAME=pluto
+                                      -e SERVER_NAME=pluto \
                                       -e GENERATE_CLIENT_CERT=true \
-                                      -e CLIENT_NAME=topolino
+                                      -e CLIENT_NAME=topolino \
                                       -e GENERATE_DH_CERT=true \
                                       -e DH_KEY_SIZE=2048 \
                                       4ss078/docker-openssl
